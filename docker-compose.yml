@@ -1,0 +1,72 @@
+# https://docs.docker.com/compose/compose-file/05-services/
+version: '3'
+x-logging: &default-logging
+  options:
+    max-size: '10m'
+    max-file: '3'
+services:
+    postgres:
+        image: postgres:latest
+        profiles: ['infra']
+        container_name: ${POSTGRES_DB_HOST}
+        logging: *default-logging
+        environment:
+            POSTGRES_USER: ${POSTGRES_DB_USERNAME}
+            POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB_DATABASE}
+        networks:
+            - default
+
+    redis:
+        image: redis:latest
+        profiles: ['infra']
+        container_name: ${REDIS_HOST}
+        logging: *default-logging
+        networks:
+            - default
+
+    mongo:
+        image: mongo:latest
+        profiles: ['infra']
+        container_name: ${MONGO_DB_HOST}
+        logging: *default-logging
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_DB_USERNAME}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_DB_PASSWORD}
+        networks:
+            - default
+
+    mongo-express:
+        image: mongo-express:latest
+        profiles: ['infra']
+        container_name: ${MONGO_DB_HOST}-express
+        logging: *default-logging
+        environment:
+            ME_CONFIG_BASICAUTH_USERNAME: user
+            ME_CONFIG_BASICAUTH_PASSWORD: password
+            ME_CONFIG_MONGODB_ENABLE_ADMIN: true
+            ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_DB_USERNAME}
+            ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_DB_PASSWORD}
+            ME_CONFIG_MONGODB_SERVER: ${MONGO_DB_HOST}
+            ME_CONFIG_MONGODB_PORT: ${MONGO_DB_PORT}
+        networks:
+            - default
+
+    service:
+        image: $PROJECT_NAME
+        build: .
+        profiles: ['service']
+        container_name: $PROJECT_NAME
+        logging: *default-logging
+        environment:
+            - NODE_ENV=production
+        env_file: .env.development
+        volumes:
+            - ./logs:/app/logs
+        networks:
+            - default
+
+networks:
+    default:
+        external: true
+        name: ${PROJECT_NAME}
