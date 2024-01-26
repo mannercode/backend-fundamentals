@@ -51,24 +51,81 @@
 ```plantuml
 @startuml
 actor 고객
-participant "극장 예매 시스템" as System
+participant "Frontend" as front
+participant "Backend" as back
 
-고객 -> System : 극장 예매 시스템에 접속
-System -> System : 영화 목록 정렬(주간 인기, 월간 인기, 최신 순)
-System -> 고객 : 영화 목록 제공
-고객 -> System : 영화 선택
-System -> 고객 : 상영 극장 목록 제공
-고객 -> System : 상영 극장 선택
-System -> 고객 : 상영일 목록 제공
-고객 -> System : 상영일 선택
-System -> 고객 : 상세 정보 제공
-고객 -> System : 상영 시간 선택
-System -> 고객 : 선택 가능한 좌석 정보 제공
-고객 -> System : 좌석 선택
-System -> 고객 : 선택한 좌석과 총 가격을 정보 제공
-고객 -> System : 결제 정보 입력 및 구매 확정
-System -> 고객 : 티켓 구매 결과(성공)
-System -> 고객 : 전자 티켓 이메일 발송
+고객 -> front : 극장 예매 시스템에 접속
+front -> back : 추천 영화 목록 요청\nGET /movies/recommended?userId={id}
+back -> back : 영화 목록 정렬(주간 인기, 월간 인기, 최신 순)
+front <-- back : recommendedMovieDtos[]
+고객 <-- front : 영화 목록 제공
+고객 -> front : 영화 선택
+front -> back : 선택한 영화의 상영 극장 목록 요청\nGET /theaters/showing?movieId={id}
+front <-- back : showingTheaterDtos[]
+고객 <-- front : 상영 극장 목록 제공
+고객 -> front : 상영 극장 선택
+front -> back : 선택한 영화와 극장의 상영일 목록 요청\nGET /showdates?movieId={id}&theaterId={id})
+front <-- back : showdateDtos[]
+고객 <-- front : 상영일 목록 제공
+고객 -> front : 상영일 선택
+front -> back : 상영일의 상세 정보 요청\nGET /showtimes?date={date}&movieId={id}&theaterId={id}
+front <-- back : showtimeDtos[]
+고객 <-- front : 상영일의 상세 정보 제공
+고객 -> front : 상영 시간 선택
+front -> back : 상영 시간의 좌석 정보 요청\nGET /theaters/{theaterId}?showtimeId={id}
+front <-- back : seatmapStatusDto
+고객 <-- front : 선택 가능한 좌석 정보 제공
+고객 -> front : 좌석 선택
+front -> back : 선택한 좌석 예약 및 가격 계산\nPOST /reservations
+note right
+ReservationRequestDto {
+  showtimeId: string
+  theaterId: string
+  seatIds: string[]
+}
+end note
+front <-- back : reservationResponseDto
+note right
+ReservationResponseDto {
+  result: ["Reserved","Held"]
+  reservationId,
+  showtime:YYYYMMDDHHmm,
+  selectedSeats,
+  totalPrice,
+  reservationTime:
+    "2023-01-21T15:00:00Z"
+}
+end note
+고객 <-- front : 결제화면(선택한 좌석과 총 가격 정보 제공)
+고객 -> front : 결제 정보 입력 및 구매 확정
+front -> back : 결제 처리 요청 (POST /payments)
+note right
+PaymentRequestDTO {
+  reservationId,
+  userId,
+  paymentMethod: ["CreditCard", "PayPal"]
+  cardDetails:{
+      cardNumber: "1234-5678-9012-3456",
+      cardHolderName: "John Doe",
+      expirationDate: "12/24",
+      cvv: "123"
+  }
+}
+end note
+front <-- back : 결제 처리 결과(성공)
+note right
+PaymentResponseDTO {
+    transactionId,
+    reservationId,
+    paymentStatus: ["Success", "Failed"]
+    message: "Payment processed successfully."
+    amountPaid: 20000,
+    paymentDate\n
+      "2023-01-21T15:30:00Z"
+}
+end note
+고객 <-- front : 티켓 구매 결과(성공)
+고객 <-- back : 전자 티켓 이메일 발송
 @enduml
 
 ```
