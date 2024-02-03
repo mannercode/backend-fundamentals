@@ -63,8 +63,8 @@ participant "Movies" as movies
 participant "Recommendation" as recommend
 participant "Customers" as customsvc
 participant "Theaters" as theaters
-participant "Showdates" as showdates
 participant "Showtimes" as showtimes
+participant "Tickets" as tickets
 
 customer -> front : 극장 예매 시스템에 접속
 front -> back : 추천 영화 목록 요청\nGET /movies/recommended?\ncustomerId={id}
@@ -78,31 +78,49 @@ recommend -> recommend : createMovieRecommendations\n(viewingHistory,searchHisto
 movies <-- recommend : movieRecommendations
 movies -> movies : getMovies(recommendations)
 back <-- movies : recommendedMovies[]
-front <-- back : recommendedMovieDtos[]
+front <-- back : recommendedMovies[]
 customer <-- front : 영화 목록 제공
 customer -> front : 영화 선택
-front -> back : 상영 극장 목록 요청\nGET /theaters/showing?movieId={id}
-front <-- back : showingTheaterDtos[]
+front -> back : 상영 극장 목록 요청\nGET /theaters/showing?movieId={id}&nearby=37.123,128.678
+back -> theaters: findNearByTheatersShowingMovie(movieId,location)
+theaters -> showtimes: findTheaterIdsShowingMovie(movieId)
+theaters <-- showtimes: theaterIds[]
+theaters -> theaters: getTheatersSortedByDistance(theaterIds, location)
+back <-- theaters: showingTheaters[](limited:5)
+front <-- back : showingTheaters[]
 customer <-- front : 상영 극장 목록 제공
 customer -> front : 상영 극장 선택
 front -> back : 상영일 목록 요청\nGET /showdates?movieId={id}&\ntheaterId={id})
-front <-- back : showdateDtos[]
+back -> showtimes: findMovieShowdates(movieId,theaterId)
+back <-- showtimes: movieShowdates[]
+front <-- back : movieShowdates[]
 customer <-- front : 상영일 목록 제공
 customer -> front : 상영일 선택
-front -> back : 상영 시간 목록 요청\nGET /showtimes?date={date}&\nmovieId={id}&theaterId={id}
-front <-- back : showtimeDtos[]
+front -> back : 상영 시간 목록 요청\nGET /showtimes?showdate={date}&\nmovieId={id}&theaterId={id}
+back -> showtimes: findShowtimes(theaterId, movieId, showdate)
+showtimes -> showtimes: findShowtimes(theaterId, movieId, showdate)\n: showtimes[]
+showtimes -> tickets: getTicketSalesStatuses(showtimeIds[])
+showtimes <-- tickets: ticketSalesStatuses[]
+showtimes -> showtimes: createShowtimesWithSalesStatus(showtimes[], ticketSalesStatuses)
+back <-- showtimes: showtimesWithSalesStatus[]
+front <-- back : showtimesWithSalesStatus[]
 customer <-- front : 상영일의 상세 정보 제공
 customer -> front : 상영 시간 선택
 front -> back : 상영 시간의 좌석 정보 요청\nGET /theaters/{theaterId}/\nshowing-seatmap?showtimeId={id}
-front <-- back : showingSeatmapDto
+back -> theaters : getShowingSeatmap(showtimeId)
+theaters -> tickets : getTickets(showtimeId)
+theaters <-- tickets : tickets[]
+theaters -> theaters : generateShowingSeatmap(tickets)
+back <-- theaters: showingSeatmap
+front <-- back : showingSeatmap
 customer <-- front : 선택 가능한 좌석 정보 제공
 customer -> front : 좌석 선택
 front -> back : 선택한 좌석 예약 및 가격 계산\nPOST /orders
-front <-- back : orderDto
+front <-- back : order
 customer <-- front : 결제화면(선택한 좌석과 총 가격 정보 제공)
 customer -> front : 결제 정보 입력 및 구매 확정
 front -> back : 결제 처리 요청 (POST /payments)
-front <-- back : paymentResultDto(success)
+front <-- back : paymentResult(success)
 customer <-- front : 티켓 구매 결과(성공)
 customer <-- back : 전자 티켓 이메일 발송
 @enduml
