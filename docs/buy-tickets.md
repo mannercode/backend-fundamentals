@@ -81,7 +81,7 @@ back <-- movies : recommendedMovies[]
 front <-- back : recommendedMovies[]
 customer <-- front : 영화 목록 제공
 customer -> front : 영화 선택
-front -> back : 상영 극장 목록 요청\nGET /theaters/showing?movieId={id}&nearby=37.123,128.678
+front -> back : 상영 극장 목록 요청\nGET /theaters/showing?\nmovieId={id}&nearby=37.123,128.678
 back -> theaters: findNearByTheatersShowingMovie(movieId,location)
 theaters -> showtimes: findTheaterIdsShowingMovie(movieId)
 theaters <-- showtimes: theaterIds[]
