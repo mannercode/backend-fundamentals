@@ -101,7 +101,7 @@ back -> showtimes: findShowtimes(theaterId, movieId, showdate)
 showtimes -> showtimes: findShowtimes(theaterId, movieId, showdate)\n: showtimes[]
 showtimes -> tickets: getTicketSalesStatuses(showtimeIds[])
 showtimes <-- tickets: ticketSalesStatuses[]
-showtimes -> showtimes: createShowtimesWithSalesStatus(showtimes[], ticketSalesStatuses)
+showtimes -> showtimes: createShowtimesWithSalesStatus\n(showtimes[], ticketSalesStatuses)
 back <-- showtimes: showtimesWithSalesStatus[]
 front <-- back : showtimesWithSalesStatus[]
 customer <-- front : 상영일의 상세 정보 제공
@@ -126,3 +126,70 @@ customer <-- back : 전자 티켓 이메일 발송
 @enduml
 
 ```
+
+```ts
+const customers = new CustomersService()
+const recommendation = new RecommendationService(customersService)
+const movies = new MoviesService(recommendationService)
+```
+
+```plantuml
+@startuml
+actor 고객 as customer
+participant "Frontend" as front
+participant "Backend" as back
+participant "Movies" as movies
+participant "Customers" as customsvc
+participant "Tickets" as tickets
+
+customer -> front : 극장 선택
+front -> back : 고객이 관람한 영화 목록 요청\nGET /customers/{customerId}/history
+back -> customsvc : getWatchingHistory\n(customerId)
+customsvc -> tickets : getBuyingHistory\n(customerId)
+customsvc <-- tickets : boughtTickets[]
+customsvc -> customsvc : movieIds = boughtTickets[].movieId
+customsvc -> movies : getMovies(movieIds)
+customsvc <-- movies : movies
+back <-- customsvc : movies
+front <-- back : 고객이 관람한 영화 목록
+customer <-- front : 영화 목록 제공
+@enduml
+
+```
+
+순환 종속성 문제가 있음
+
+```ts
+const recommendation = new RecommendationService(customers)
+const movies = new MoviesService(recommendation)
+const tickets = new TicketsService()
+const customers = new CustomersService(tickets, movies)
+```
+
+해결#1
+
+```ts
+const tickets = new TicketsService()
+const recommendationmoviescustomers = new MoviesCustomersRecommendationService(recommendation)
+```
+
+해결#2
+
+```ts
+const recommendation = new RecommendationService()
+const movies = new MoviesService(recommendation)
+const tickets = new TicketsService()
+const customers = new CustomersService(tickets, movies)
+
+// 억지스러운 코드
+recommendation.customers = customers
+
+// 이런 부작용이 생긴다
+if (this.customers) {
+    console.log('')
+}
+```
+
+상영 서비스, 통계 서비스를 분리하면 편하다. 그런데 이것을 movies, theaters에 통합하면 덩치가 커지고 종속성이 높아진다.
+코드는 물 흐르듯이 자연스러워야 하고 이치에 맞아야 한다.
+자연스러우면 기억할 필요가 없다. 부자연스러운 부분은 기억을 해야 한다. 코드가 복잡해지는 것이다.
