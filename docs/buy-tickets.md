@@ -127,20 +127,30 @@ customer <-- back : 전자 티켓 이메일 발송
 
 ```
 
-```ts
-const customers = new CustomersService()
-const recommendation = new RecommendationService(customersService)
-const movies = new MoviesService(recommendationService)
-```
-
 ```plantuml
 @startuml
 actor 고객 as customer
 participant "Frontend" as front
 participant "Backend" as back
 participant "Movies" as movies
+participant "Recommendation" as recommend
 participant "Customers" as customsvc
 participant "Tickets" as tickets
+
+customer -> front : 극장 예매 시스템에 접속
+front -> back : 추천 영화 목록 요청\nGET /movies/recommended?\ncustomerId={id}
+back -> movies : findRecommendedMovies\n(customerId)
+movies -> recommend : getMovieRecommendation\nForCustomer(customerId)
+recommend -> customsvc : getViewingHistory(customerId)
+recommend <-- customsvc : viewingHistory
+recommend -> customsvc : getSearchHistory(customerId)
+recommend <-- customsvc : searchHistory
+recommend -> recommend : createMovieRecommendations\n(viewingHistory,searchHistory)
+movies <-- recommend : movieRecommendations
+movies -> movies : getMovies(recommendations)
+back <-- movies : recommendedMovies[]
+front <-- back : recommendedMovies[]
+customer <-- front : 영화 목록 제공
 
 customer -> front : 극장 선택
 front -> back : 고객이 관람한 영화 목록 요청\nGET /customers/{customerId}/history
@@ -155,6 +165,12 @@ front <-- back : 고객이 관람한 영화 목록
 customer <-- front : 영화 목록 제공
 @enduml
 
+```
+
+```ts
+const customers = new CustomersService()
+const recommendation = new RecommendationService(customersService)
+const movies = new MoviesService(recommendationService)
 ```
 
 순환 종속성 문제가 있음
@@ -193,3 +209,4 @@ if (this.customers) {
 상영 서비스, 통계 서비스를 분리하면 편하다. 그런데 이것을 movies, theaters에 통합하면 덩치가 커지고 종속성이 높아진다.
 코드는 물 흐르듯이 자연스러워야 하고 이치에 맞아야 한다.
 자연스러우면 기억할 필요가 없다. 부자연스러운 부분은 기억을 해야 한다. 코드가 복잡해지는 것이다.
+FoundationService는 참조가 없다. ApplicationService에서 관리한다.
