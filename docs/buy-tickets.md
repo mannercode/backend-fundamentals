@@ -106,7 +106,7 @@ back <-- showtimes: showtimesWithSalesStatus[]
 front <-- back : showtimesWithSalesStatus[]
 customer <-- front : 상영일의 상세 정보 제공
 customer -> front : 상영 시간 선택
-front -> back : 상영 시간의 좌석 정보 요청\nGET /theaters/{theaterId}/\nshowing-seatmap?showtimeId={id}
+front -> back : 상영 시간의 좌석 정보 요청\nGET /theaters/{theaterId}\n/\nshowing-seatmap?showtimeId={id}
 back -> theaters : getShowingSeatmap(showtimeId)
 theaters -> tickets : getTickets(showtimeId)
 theaters <-- tickets : tickets[]
@@ -129,15 +129,12 @@ customer <-- back : 전자 티켓 이메일 발송
 
 ```plantuml
 @startuml
-actor 고객 as customer
 participant "Frontend" as front
 participant "Backend" as back
 participant "Movies" as movies
 participant "Recommendation" as recommend
 participant "Customers" as customsvc
-participant "Tickets" as tickets
 
-customer -> front : 극장 예매 시스템에 접속
 front -> back : 추천 영화 목록 요청\nGET /movies/recommended?\ncustomerId={id}
 back -> movies : findRecommendedMovies\n(customerId)
 movies -> recommend : getMovieRecommendation\nForCustomer(customerId)
@@ -150,9 +147,7 @@ movies <-- recommend : movieRecommendations
 movies -> movies : getMovies(recommendations)
 back <-- movies : recommendedMovies[]
 front <-- back : recommendedMovies[]
-customer <-- front : 영화 목록 제공
 
-customer -> front : 극장 선택
 front -> back : 고객이 관람한 영화 목록 요청\nGET /customers/{customerId}/history
 back -> customsvc : getWatchingHistory\n(customerId)
 customsvc -> tickets : getBuyingHistory\n(customerId)
@@ -162,51 +157,147 @@ customsvc -> movies : getMovies(movieIds)
 customsvc <-- movies : movies
 back <-- customsvc : movies
 front <-- back : 고객이 관람한 영화 목록
-customer <-- front : 영화 목록 제공
+
 @enduml
 
 ```
 
+고객에게 추천하는 영화목록 서비스 생성
+
 ```ts
 const customers = new CustomersService()
-const recommendation = new RecommendationService(customersService)
-const movies = new MoviesService(recommendationService)
-```
-
-순환 종속성 문제가 있음
-
-```ts
 const recommendation = new RecommendationService(customers)
 const movies = new MoviesService(recommendation)
+```
+
+```ts
 const tickets = new TicketsService()
+const movies = new MoviesService()
 const customers = new CustomersService(tickets, movies)
 ```
 
-해결#1
+```ts
+const tickets = new TicketsService()
+const movies = new MoviesService(recommendation)
+const customers = new CustomersService(tickets, movies)
+const recommendation = new RecommendationService(customers)
+```
+
+```plantuml
+@startuml
+class Movies {}
+class Customers {}
+class Recommendation {}
+class Tickets {}
+
+Movies --> Recommendation
+Recommendation --> Customers
+Customers --> Tickets
+Customers --> Movies
+@enduml
+```
+```plantuml
+@startuml
+class Movies {}
+class Histories {}
+class Recommendation {}
+class Tickets {}
+
+Histories --> Tickets
+Histories --> Movies
+Recommendation --> Histories
+Recommendation --> Movies
+@enduml
+```
 
 ```ts
 const tickets = new TicketsService()
-const recommendationmoviescustomers = new MoviesCustomersRecommendationService(recommendation)
+const movies = new MoviesCustomersRecommendationService(tickets)
 ```
 
-해결#2
-
 ```ts
+const tickets = new TicketsService()
 const recommendation = new RecommendationService()
 const movies = new MoviesService(recommendation)
-const tickets = new TicketsService()
 const customers = new CustomersService(tickets, movies)
 
-// 억지스러운 코드
 recommendation.customers = customers
 
-// 이런 부작용이 생긴다
-if (this.customers) {
-    console.log('')
+if(this.customers){
+    console.error('undefined')
 }
 ```
 
-상영 서비스, 통계 서비스를 분리하면 편하다. 그런데 이것을 movies, theaters에 통합하면 덩치가 커지고 종속성이 높아진다.
-코드는 물 흐르듯이 자연스러워야 하고 이치에 맞아야 한다.
-자연스러우면 기억할 필요가 없다. 부자연스러운 부분은 기억을 해야 한다. 코드가 복잡해지는 것이다.
-FoundationService는 참조가 없다. ApplicationService에서 관리한다.
+```plantuml
+@startuml
+participant "Frontend" as front
+participant "Backend" as back
+participant "Movies" as movies
+participant "Recommendation" as recommend
+participant "Histories" as histories
+participant "Customers" as customsvc
+
+front -> back : 추천 영화 목록 요청\nGET /recommendation/movies?customerId={id}
+back -> recommend : findRecommendedMovies\n(customerId)
+recommend -> recommend : getMovieRecommendation\nForCustomer(customerId)
+recommend -> histories : getViewingHistory(customerId)
+recommend <-- histories : viewingHistory
+recommend -> histories : getSearchHistory(customerId)
+recommend <-- histories : searchHistory
+recommend -> recommend : createMovieRecommendations\n(viewingHistory,searchHistory)
+movies <-- recommend : movieRecommendations
+movies -> movies : getMovies(recommendations)
+back <-- movies : recommendedMovies[]
+front <-- back
+
+front -> back : 고객이 관람한 영화 목록 요청\nGET /history/watching?customerId={customerId}
+back -> histories : getWatchingHistory\n(customerId)
+histories -> tickets : getBuyingHistory\n(customerId)
+histories <-- tickets : boughtTickets[]
+histories -> histories : movieIds = boughtTickets[].movieId
+histories -> movies : getMovies(movieIds)
+histories <-- movies : movies
+back <-- histories : movies
+front <-- back : 고객이 관람한 영화 목록
+
+@enduml
+
+```
+
+```plantuml
+@startuml
+skinparam maxMessageSize 250
+
+actor 고객 as customer
+participant "Frontend" as front
+participant "Backend" as back
+
+customer -> front : 극장 예매 시스템에 접속
+front -> back : 추천 영화 목록 요청\nGET /recommendation/movies?customerId={id}
+front <-- back : recommendedMovies[]
+customer <-- front : 영화 목록 제공
+
+customer -> front : 영화 선택
+front -> back : 상영 극장 목록 요청\nGET /booking/movies/{movieId}/theaters/nearby?location=37.123,128.678
+front <-- back : bookingTheaters[]
+note right: BookingTheater{...theater, distance}
+customer <-- front : 상영 극장 목록 제공
+
+customer -> front : 상영 극장 선택
+front -> back : 상영일 목록 요청\nGET /booking/movies/{movieId}/theaters/{theaterId}/showdates
+front <-- back : bookingShowdates[]
+customer <-- front : 상영일 목록 제공
+
+customer -> front : 상영일 선택
+front -> back : 상영 시간 목록 요청\nGET /booking/showdates/{showdateId}/showtimes
+front <-- back : bookingShowtimes[]
+customer <-- front : 상영일의 상세 정보 제공
+
+customer -> front : 상영 시간 선택
+front -> back : 상영 시간의 좌석 정보 요청\nGET /booking/showtimes/{showtimeId}/seatmap
+front <-- back : bookingSeatmap
+customer <-- front : 선택 가능한 좌석 정보 제공
+
+@enduml
+
+```
