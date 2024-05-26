@@ -40,7 +40,7 @@ left to right direction
 
 actor 관리자 as Administrator
 
-package "Theater Management System" {
+package "극장 관리\nManage Theaters" {
     usecase "극장 정보 업데이트\nUpdate Theater Info" as UpdateTheaterInfo
     usecase "좌석 배치 관리\nManage Seating Arrangements" as ManageSeating
     usecase "시설 관리\nManage Facilities" as ManageFacilities
